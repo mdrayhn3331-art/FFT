@@ -70,3 +70,132 @@ async function loadDynamicButtons(){
   });
 }
 
+
+
+/* ===== FFT SHOP STARTUP / AUTH BOOTSTRAP FIX ===== */
+(function(){
+  'use strict';
+  const client = supabase;
+  const gate = document.getElementById('authGate');
+  const gateContent = document.getElementById('authGateContent');
+  const shell = document.querySelector('.app-shell');
+
+  function hideGate(){
+    if(gate) gate.classList.add('hidden');
+    if(shell) shell.classList.remove('hidden');
+    if(window.FFT_HIDE_SPLASH) window.FFT_HIDE_SPLASH();
+  }
+  function showGate(html){
+    if(shell) shell.classList.add('hidden');
+    if(gate) gate.classList.remove('hidden');
+    if(gateContent) gateContent.innerHTML=html;
+    if(window.FFT_HIDE_SPLASH) window.FFT_HIDE_SPLASH();
+  }
+  function authForm(mode='login'){
+    const title=mode==='login'?'Welcome back 👋':mode==='register'?'Create your account 🚀':'Reset your password 🔐';
+    const submit=mode==='login'?'Sign In':mode==='register'?'Create Account':'Send Reset Email';
+    return `<div class="auth-title"><h2>${title}</h2><p class="muted">${mode==='login'?'Sign in to continue to FFT SHOP.':mode==='register'?'Register a new FFT SHOP account.':'Enter your email and we will send a reset link.'}</p></div>
+      <form id="authForm" class="form">
+        <input name="email" type="email" required autocomplete="email" placeholder="Email address">
+        ${mode!=='forgot'?'<input name="password" type="password" required minlength="6" autocomplete="'+(mode==='login'?'current-password':'new-password')+'" placeholder="Password">':''}
+        <button class="primary btn3d" type="submit">${submit}</button>
+      </form>
+      <div id="authMsg" class="msg hidden"></div>
+      <div class="auth-switch">
+        ${mode!=='login'?'<button class="secondary btn3d" type="button" data-auth="login">Sign In</button>':''}
+        ${mode!=='register'?'<button class="secondary btn3d" type="button" data-auth="register">Register</button>':''}
+        ${mode!=='forgot'?'<button class="secondary btn3d" type="button" data-auth="forgot">Forgot Password?</button>':''}
+      </div>`;
+  }
+  function bindAuth(mode){
+    const form=document.getElementById('authForm');
+    if(!form)return;
+    form.onsubmit=async e=>{
+      e.preventDefault();
+      const f=new FormData(form), email=String(f.get('email')||'').trim(), password=String(f.get('password')||'');
+      const msg=document.getElementById('authMsg');
+      const btn=form.querySelector('button[type=submit]');
+      btn.disabled=true; if(msg){msg.classList.remove('hidden');msg.textContent='Please wait...'}
+      let result;
+      try{
+        if(mode==='login') result=await client.auth.signInWithPassword({email,password});
+        else if(mode==='register') result=await client.auth.signUp({email,password});
+        else result=await client.auth.resetPasswordForEmail(email,{redirectTo:location.href.split('#')[0]});
+      }catch(err){result={error:{message:err.message||String(err)}}}
+      btn.disabled=false;
+      if(result?.error){
+        if(msg)msg.textContent=result.error.message||'Authentication failed.';
+        return;
+      }
+      if(mode==='register' && !result?.data?.access_token){
+        if(msg)msg.textContent='Account created. Check your email if confirmation is enabled, then sign in.';
+        return;
+      }
+      if(mode==='forgot'){
+        if(msg)msg.textContent='Password reset email sent. Check your inbox.';
+        return;
+      }
+      await boot();
+    };
+    document.querySelectorAll('[data-auth]').forEach(b=>b.onclick=()=>{
+      const m=b.dataset.auth; showGate(authForm(m)); bindAuth(m);
+    });
+  }
+  function showAuth(){ showGate(authForm('login')); bindAuth('login'); }
+  window.showAuth=showAuth;
+
+  async function boot(){
+    try{
+      const sessionResult=await client.auth.getSession();
+      const session=sessionResult?.data?.session;
+      if(!session?.access_token){showAuth();return}
+      hideGate();
+      try{await Promise.all([loadSettings(),loadProducts(),refreshUser(),loadDynamicButtons()]);}
+      catch(e){console.error('FFT data boot error:',e);}
+      updateCart();
+    }catch(e){
+      console.error('FFT startup error:',e);
+      showGate(`<div class="auth-error"><b>FFT SHOP could not start.</b><br>${esc(e?.message||'Unknown startup error')}</div><button class="primary btn3d" style="width:100%" onclick="location.reload()">Reload FFT SHOP</button>`);
+    }
+  }
+
+  const cartBtn=document.getElementById('cartBtn');
+  if(cartBtn) cartBtn.onclick=()=>{
+    if(!cart.length){openModal('<h2>🛒 Your Cart</h2><div class="msg">Your cart is empty.</div>');return}
+    const total=cart.reduce((sum,x)=>sum+Number(x.price||0)*Number(x.qty||1),0);
+    openModal(`<h2>🛒 Your Cart</h2><div class="form">${cart.map(x=>`<div class="wallet-card"><span>${esc(x.name)} × ${x.qty}</span><b>${money(Number(x.price)*Number(x.qty))}</b></div>`).join('')}<div class="wallet-card"><span>Total</span><b>${money(total)}</b></div><button class="secondary btn3d" id="clearCart">Clear Cart</button></div>`);
+    document.getElementById('clearCart').onclick=()=>{cart=[];updateCart();closeModal()};
+  };
+  const homeBtn=document.getElementById('homeBtn');
+  if(homeBtn)homeBtn.onclick=()=>window.scrollTo({top:0,behavior:'smooth'});
+  const ordersBtn=document.getElementById('ordersBtn');
+  if(ordersBtn)ordersBtn.onclick=async()=>{
+    const u=await refreshUser(); if(!u)return;
+    const {data,error}=await client.from('orders').select('*').eq('user_id',u.id).order('created_at',{ascending:false});
+    openModal(`<h2>📦 My Orders</h2>${error?`<div class="msg">${esc(error.message)}</div>`:(data?.length?data.map(o=>`<div class="wallet-card"><span>#${o.id.slice(0,8)}<br>${esc(o.status||'pending')}</span><b>${money(o.checkout_total||o.total_amount)}</b></div>`).join(''):'<div class="msg">No orders yet.</div>')}`);
+  };
+  const premiumBtn=document.getElementById('premiumBtn');
+  if(premiumBtn)premiumBtn.onclick=()=>{category='Premium Apps';document.querySelector('[data-cat="Premium Apps"]')?.click();window.scrollTo({top:0,behavior:'smooth'})};
+  const profileBtn=document.getElementById('profileBtn');
+  if(profileBtn)profileBtn.onclick=async()=>{
+    const u=await refreshUser(); if(!u)return;
+    openModal(`<h2>👤 Account</h2><div class="msg">${esc(u.email||'Signed in')}</div><div class="form"><button class="primary btn3d" id="logoutUser">Sign Out</button></div>`);
+    document.getElementById('logoutUser').onclick=async()=>{await client.auth.signOut();location.reload()};
+  };
+  const depositBtn=document.getElementById('depositBtn');
+  if(depositBtn)depositBtn.onclick=async()=>{
+    const u=await refreshUser(); if(!u)return;
+    const {data:settings}=await client.from('site_settings').select('bkash_number,nagad_number').limit(1).maybeSingle();
+    const bk=settings?.bkash_number||'01876872469', ng=settings?.nagad_number||'01876872469';
+    openModal(`<h2>💰 Add Balance</h2><div class="msg">Send money to bKash <b>${esc(bk)}</b> or Nagad <b>${esc(ng)}</b>, then submit the transaction details.</div>
+      <form id="depositForm" class="form"><input name="amount" type="number" min="1" step="0.01" required placeholder="Amount"><select name="payment_method"><option value="bkash">bKash</option><option value="nagad">Nagad</option></select><input name="sender_number" required placeholder="Your payment number"><input name="transaction_id" required placeholder="Transaction ID"><button class="primary btn3d">Submit Deposit</button></form>`);
+    document.getElementById('depositForm').onsubmit=async e=>{
+      e.preventDefault();const f=new FormData(e.target);
+      const {error}=await client.from('deposit_requests').insert({user_id:u.id,amount:Number(f.get('amount')),payment_method:f.get('payment_method'),sender_number:f.get('sender_number'),transaction_id:f.get('transaction_id'),status:'pending',merchant_number:f.get('payment_method')==='bkash'?bk:ng});
+      if(error)openModal(`<h2>Deposit failed</h2><div class="msg">${esc(error.message)}</div>`);
+      else openModal('<h2>✅ Deposit Submitted</h2><div class="msg">Your deposit request is pending admin verification.</div>');
+    };
+  };
+  client.auth.onAuthStateChange(()=>{});
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
+})();
