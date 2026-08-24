@@ -1,17 +1,9 @@
-FFT SHOP - GitHub Pages
+FFT SHOP - GITHUB PAGES
 
-Upload ALL files in this folder directly to the ROOT of your GitHub repository.
-Do not keep the FFT-main folder.
+Upload ALL files in this ZIP directly to the repository root.
+index.html must be at repository root.
 
-Required root:
-index.html
-app.js
-styles.css
-supabase.js
-admin.html
-admin.js
+Flow: 3D Loading -> Login/Register/Forgot Password -> Shop.
+If already signed in, it opens the Shop after the splash.
 
-GitHub Pages:
-Settings -> Pages -> Deploy from branch -> main -> /(root)
-
-This build fixes the main UI button handlers and Supabase SDK loading.
+GitHub Pages: Settings -> Pages -> Deploy from branch -> main -> /(root).
