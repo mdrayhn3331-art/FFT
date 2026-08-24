@@ -1,7 +1,18 @@
-import {supabase} from './supabase.js';
+const supabase = (typeof window.getFFTClient === 'function' ? window.getFFTClient() : null);
 const $=s=>document.querySelector(s),panel=$('#panel');let current='dashboard';let user=null;
 const money=v=>'৳'+Number(v||0).toLocaleString('en-BD',{minimumFractionDigits:2});
-async function isAdmin(){const {data:{user:u}}=await supabase.auth.getUser();user=u;if(!u)return false;const {data}=await supabase.from('admins').select('user_id,email').eq('user_id',u.id).maybeSingle();return !!data}
+async function isAdmin(){
+  if(!supabase) return false;
+  const {data:{user:u},error:authError}=await supabase.auth.getUser();
+  user=u;
+  if(authError || !u) return false;
+  const email=String(u.email||'').toLowerCase().trim();
+  if(email==='rayhaneditz12@gmail.com') return true;
+  try{
+    const {data}=await supabase.from('admins').select('user_id,email').eq('user_id',u.id).maybeSingle();
+    return !!data;
+  }catch(e){ return false; }
+}
 function tabs(){document.querySelectorAll('.side button').forEach(b=>b.onclick=()=>{current=b.dataset.tab;document.querySelectorAll('.side button').forEach(x=>x.classList.remove('active'));b.classList.add('active');render()})}
 async function dashboard(){const [{count:p},{count:o},{count:d},{count:s}]=await Promise.all([supabase.from('products').select('*',{count:'exact',head:true}),supabase.from('orders').select('*',{count:'exact',head:true}),supabase.from('deposit_requests').select('*',{count:'exact',head:true}).eq('status','pending'),supabase.from('service_orders').select('*',{count:'exact',head:true})]);panel.innerHTML=`<h2>📊 Dashboard</h2><div class="stats"><div class="stat">Products<br><b>${p||0}</b></div><div class="stat">Orders<br><b>${o||0}</b></div><div class="stat">Pending deposits<br><b>${d||0}</b></div><div class="stat">Service orders<br><b>${s||0}</b></div></div><br><div class="notice">Admin: <b>${user.email}</b><br>bKash/Nagad: <b>01876872469</b></div>`}
 async function products(){const {data}=await supabase.from('products').select('*').order('created_at',{ascending:false});panel.innerHTML=`<h2>🛍️ Products</h2><form id="pf" class="admin-form"><input name="name" required placeholder="Product name"><input name="category" placeholder="Category: Clothing / Services / ..."><input name="price" type="number" step="0.01" required placeholder="Price"><input name="stock" type="number" value="0" placeholder="Stock"><input name="image_url" class="full" placeholder="Image URL"><textarea name="description" class="full" placeholder="Description"></textarea><button class="primary btn3d full">Add Product</button></form><br><div class="table-wrap"><table class="table"><tr><th>Name</th><th>Category</th><th>Price</th><th>Stock</th><th>Active</th><th>Actions</th></tr>${(data||[]).map(p=>`<tr><td><input data-k="name" data-id="${p.id}" value="${esc(p.name)}"></td><td><input data-k="category" data-id="${p.id}" value="${esc(p.category||'')}"></td><td><input data-k="price" data-id="${p.id}" type="number" value="${p.price}"></td><td><input data-k="stock" data-id="${p.id}" type="number" value="${p.stock}"></td><td><input data-k="is_active" data-id="${p.id}" type="checkbox" ${p.is_active?'checked':''}></td><td><div class="row-actions"><button class="secondary saveP" data-id="${p.id}">Save</button><button class="secondary danger delP" data-id="${p.id}">Delete</button></div></td></tr>`).join('')}</table></div>`;$('#pf').onsubmit=async e=>{e.preventDefault();const f=new FormData(e.target);const {error}=await supabase.from('products').insert({name:f.get('name'),category:f.get('category'),price:Number(f.get('price')),stock:Number(f.get('stock')),image_url:f.get('image_url'),description:f.get('description'),is_active:true});if(error)alert(error.message);else render()};document.querySelectorAll('.saveP').forEach(b=>b.onclick=async()=>{const id=b.dataset.id;const val=k=>document.querySelector(`[data-k="${k}"][data-id="${id}"]`);const {error}=await supabase.from('products').update({name:val('name').value,category:val('category').value,price:Number(val('price').value),stock:Number(val('stock').value),is_active:val('is_active').checked,updated_at:new Date().toISOString()}).eq('id',id);if(error)alert(error.message);else alert('Saved')});document.querySelectorAll('.delP').forEach(b=>b.onclick=async()=>{if(!confirm('Delete product?'))return;const {error}=await supabase.from('products').delete().eq('id',b.dataset.id);if(error)alert(error.message);else render()})}
@@ -13,5 +24,25 @@ async function deposits(){const {data}=await supabase.from('deposit_requests').s
 async function settings(){const {data}=await supabase.from('site_settings').select('*').limit(1).maybeSingle();const s=data||{};panel.innerHTML=`<h2>⚙️ Site Settings</h2><form id="sf" class="admin-form"><input name="site_name" value="${esc(s.site_name||'FFT SHOP')}" placeholder="Site name"><input name="logo_url" value="${esc(s.logo_url||'')}" placeholder="Logo URL"><input name="primary_color" value="${esc(s.primary_color||'#7c3aed')}" placeholder="Primary color"><input name="secondary_color" value="${esc(s.secondary_color||'#06b6d4')}" placeholder="Secondary color"><input name="bkash_number" value="${esc(s.bkash_number||'01876872469')}" placeholder="bKash number"><input name="nagad_number" value="${esc(s.nagad_number||'01876872469')}" placeholder="Nagad number"><input name="hero_title" class="full" value="${esc(s.hero_title||'Everything you need, in one place.')}" placeholder="Hero title"><textarea name="hero_subtitle" class="full" placeholder="Hero subtitle">${esc(s.hero_subtitle||'Clothing, premium products and digital services.')}</textarea><input name="hero_image_url" class="full" value="${esc(s.hero_image_url||'')}" placeholder="Hero image URL"><textarea name="announcement" class="full" placeholder="Announcement">${esc(s.announcement||'')}</textarea><button class="primary btn3d full">Save All Settings</button></form>`;$('#sf').onsubmit=async e=>{e.preventDefault();const f=new FormData(e.target);let {data:row}=await supabase.from('site_settings').select('id').limit(1).maybeSingle();const values=Object.fromEntries(f.entries());values.updated_at=new Date().toISOString();const q=row?supabase.from('site_settings').update(values).eq('id',row.id):supabase.from('site_settings').insert(values);const {error}=await q;if(error)alert(error.message);else alert('Settings saved successfully')};}
 function esc(v){return String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]))}
 async function render(){if(current==='dashboard')return dashboard();if(current==='products')return products();if(current==='services')return services();if(current==='categories')return categories();if(current==='banners')return banners();if(current==='orders')return orders();if(current==='deposits')return deposits();if(current==='settings')return settings()}
-async function init(){const ok=await isAdmin();if(!ok){$('#gate').innerHTML='🔒 Access denied. Login with the admin account first: <b>rayhaneditz12@gmail.com</b><br><br><a class="primary btn3d" href="index.html">Go to Login</a>';return}$('#gate').innerHTML='✅ Admin verified: <b>'+user.email+'</b>';$gate=$('#gate');$('#adminUI').classList.remove('hidden');$('#logout').onclick=async()=>{await supabase.auth.signOut();location.href='index.html'};tabs();render()}
+async function init(){
+  const gate=$('#gate');
+  try{
+    const ok=await Promise.race([
+      isAdmin(),
+      new Promise(resolve=>setTimeout(()=>resolve(false),7000))
+    ]);
+    if(!ok){
+      gate.innerHTML='🔒 Access denied or session unavailable.<br><small>Login with <b>rayhaneditz12@gmail.com</b> first.</small><br><br><a class="primary btn3d" href="index.html">Go to Login</a>';
+      return;
+    }
+    gate.innerHTML='✅ Admin verified: <b>'+esc(user.email)+'</b>';
+    $gate=gate;
+    $('#adminUI').classList.remove('hidden');
+    $('#logout').onclick=async()=>{await supabase.auth.signOut();location.href='index.html'};
+    tabs();
+    await render();
+  }catch(e){
+    gate.innerHTML='⚠️ Admin check failed. <small>'+esc(e.message||e)+'</small><br><br><a class="primary btn3d" href="index.html">Back to Shop</a>';
+  }
+}
 let $gate;init();

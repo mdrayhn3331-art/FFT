@@ -1,9 +1,13 @@
-FFT SHOP - GITHUB PAGES
+FFT SHOP — GitHub Pages READY
 
-Upload ALL files in this ZIP directly to the repository root.
-index.html must be at repository root.
+Upload the CONTENTS of this ZIP directly to the repository root.
+Do not put them inside FFT-main/.
 
-Flow: 3D Loading -> Login/Register/Forgot Password -> Shop.
-If already signed in, it opens the Shop after the splash.
+Admin owner:
+rayhaneditz12@gmail.com
 
-GitHub Pages: Settings -> Pages -> Deploy from branch -> main -> /(root).
+Flow:
+3D Loading -> Login/Register -> Shop
+Owner email -> Admin link -> Admin panel
+
+If the site was previously cached, open once in Chrome Incognito or hard refresh.
