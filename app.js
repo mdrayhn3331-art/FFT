@@ -120,19 +120,50 @@ $('#premiumBtn').onclick=()=>{category='Premium Apps';document.querySelectorAll(
 $('#ordersBtn').onclick=async()=>{const u=await refreshUser();if(!u){showAuth();return}const [orderRes,serviceRes]=await Promise.all([supabase.from('orders').select('*').eq('user_id',u.id).order('created_at',{ascending:false}),supabase.from('service_orders').select('*').eq('user_id',u.id).order('created_at',{ascending:false})]);const orders=orderRes.data||[],services=serviceRes.data||[];const html=[...orders.map(o=>`<div class="wallet-card"><div><b>Product Order ${o.id.slice(0,8)}</b><br><small>${o.status} · ${o.payment_method||''}</small></div><b>${money(o.checkout_total||o.total_amount)}</b></div>`),...services.map(o=>`<div class="wallet-card"><div><b>Service: ${o.service_type}</b><br><small>${o.status} · ${o.quantity}</small></div><b>${money(o.price)}</b></div>`)].join('')||'<div class="msg">No orders yet.</div>';openModal('<h2>📦 My Orders</h2>'+html)};
 $('#depositBtn').onclick=async()=>{const u=await refreshUser();if(!u){showAuth();return}openModal(`<h2>💰 Add Balance</h2><div class="msg">Send money to <b>01876872469</b> via bKash/Nagad, then submit the request.</div><form id="dep" class="form"><input name="amount" type="number" min="1" required placeholder="Amount (BDT)"><select name="method"><option value="bkash">bKash</option><option value="nagad">Nagad</option></select><input name="sender" required placeholder="Sender number"><input name="trx" required placeholder="Transaction ID"><button class="primary btn3d">Submit Deposit Request</button></form>`);$('#dep').onsubmit=async e=>{e.preventDefault();const f=new FormData(e.target);const {error}=await supabase.from('deposit_requests').insert({user_id:u.id,amount:Number(f.get('amount')),payment_method:f.get('method'),sender_number:f.get('sender'),transaction_id:f.get('trx'),status:'pending',merchant_number:'01876872469'});if(error)alert(error.message);else openModal('<h2>✅ Submitted</h2><div class="msg">Deposit is pending admin verification.</div>')}};
 async function boot(){
-  // Never keep the splash screen forever if Supabase/network is slow or unavailable.
-  const splashTimer = new Promise(resolve => setTimeout(resolve, 4200));
-  const dataLoad = Promise.allSettled([loadSettings(), loadProducts(), refreshUser()]);
-  await splashTimer;
-  $('#splash')?.classList.add('hide');
-  await dataLoad;
-  updateCart();
-  const {data:{user}} = await supabase.auth.getUser().catch(()=>({data:{user:null}}));
-  if(!user){
-    setTimeout(()=>showAuthGate('login'), 120);
-  } else {
-    $('#authGate')?.classList.add('hidden');
+  const splash = document.getElementById('splash');
+  // The splash has a fixed duration. Never wait for Supabase/network before showing auth.
+  await new Promise(resolve => setTimeout(resolve, 4200));
+  splash?.classList.add('hide');
+
+  const gate = document.getElementById('authGate');
+  const shell = document.querySelector('.app-shell');
+  const showLoggedOut = () => {
+    shell?.classList.add('hidden');
+    gate?.classList.remove('hidden');
+    showAuthGate('login');
+  };
+  const showLoggedIn = () => {
+    gate?.classList.add('hidden');
+    shell?.classList.remove('hidden');
+    refreshUser();
+    loadSettings();
+    loadProducts();
+    updateCart();
+  };
+
+  try {
+    // getSession reads the local auth session and does not depend on product queries.
+    const { data, error } = await Promise.race([
+      supabase.auth.getSession(),
+      new Promise(resolve => setTimeout(() => resolve({data:{session:null}, error:new Error('session timeout')}), 2500))
+    ]);
+    if (data?.session?.user) showLoggedIn();
+    else showLoggedOut();
+  } catch (err) {
+    console.error('Auth boot error:', err);
+    showLoggedOut();
   }
 }
-supabase.auth.onAuthStateChange(()=>refreshUser());
+supabase.auth.onAuthStateChange((event, session)=>{
+  if(event === 'SIGNED_IN' && session?.user){
+    document.getElementById('authGate')?.classList.add('hidden');
+    document.querySelector('.app-shell')?.classList.remove('hidden');
+    refreshUser(); loadSettings(); loadProducts();
+  }
+  if(event === 'SIGNED_OUT'){
+    document.querySelector('.app-shell')?.classList.add('hidden');
+    document.getElementById('authGate')?.classList.remove('hidden');
+    showAuthGate('login');
+  }
+})(()=>refreshUser());
 boot().catch(err=>{console.error('FFT boot error:',err);$('#splash')?.classList.add('hide');setTimeout(()=>showAuthGate('login'),120)});

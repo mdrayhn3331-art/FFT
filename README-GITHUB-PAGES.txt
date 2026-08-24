@@ -1,10 +1,9 @@
-FFT SHOP — GITHUB PAGES FINAL FIX
+FFT SHOP - GITHUB PAGES
 
-1. Extract this ZIP.
-2. Upload every file INSIDE this ZIP directly to the ROOT of your GitHub repository.
-3. index.html must be directly visible in the repository root.
-4. GitHub Settings -> Pages -> Deploy from branch -> main -> /(root) -> Save.
-5. Wait for deployment, then hard refresh the site.
+Upload ALL files in this ZIP directly to the repository root.
+index.html must be at repository root.
 
-This version uses the browser UMD build of Supabase instead of an ES module import,
-and includes a hard splash timeout so the site cannot remain stuck on Loading.
+Flow: 3D Loading -> Login/Register/Forgot Password -> Shop.
+If already signed in, it opens the Shop after the splash.
+
+GitHub Pages: Settings -> Pages -> Deploy from branch -> main -> /(root).
