@@ -1,52 +1,31 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>FFT SHOP</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#070b1a"><title>FFT SHOP</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
 </head>
 <body>
-<div class="app-shell">
-  <header class="topbar">
-    <div><div class="brand">FFT <span>SHOP</span></div><small>Premium marketplace</small></div>
-    <button id="cartBtn" class="icon-btn">🛒 <b id="cartCount">0</b></button>
-  </header>
-
-  <main>
-    <section id="hero" class="hero-card">
-      <div><span class="pill">3D PREMIUM SHOP</span><h1>Everything you need,<br><span>in one place.</span></h1>
-      <p>Clothing, premium plans and legitimate digital services.</p></div>
-      <div class="hero-orb">FFT</div>
-    </section>
-
-    <section class="wallet-card">
-      <div><div class="muted">Account Balance</div><strong id="balance">৳0.00</strong></div>
-      <button id="depositBtn" class="primary">+ Add Balance</button>
-    </section>
-
-    <nav class="chips" id="categories">
-      <button class="chip active" data-cat="all">All</button>
-      <button class="chip" data-cat="Clothing">👕 Clothing</button>
-      <button class="chip" data-cat="Premium Apps">💎 Premium</button>
-      <button class="chip" data-cat="Services">🚀 Services</button>
-      <button class="chip" data-cat="Footwear">👟 Footwear</button>
-      <button class="chip" data-cat="Electronics">🎧 Electronics</button>
-    </nav>
-
-    <section class="section-head"><h2>Shop</h2><span id="userLabel" class="muted">Not signed in</span></section>
-    <div id="products" class="product-grid"></div>
-  </main>
-
-  <nav class="bottom-nav">
-    <button class="nav active">⌂<span>Home</span></button>
-    <button class="nav" id="ordersBtn">▣<span>Orders</span></button>
-    <button class="nav" id="premiumBtn">◆<span>Premium</span></button>
-    <button class="nav" id="profileBtn">●<span>Account</span></button>
-  </nav>
+<div id="splash" class="splash">
+  <div class="splash-scene"><div class="splash-ring r1"></div><div class="splash-ring r2"></div><div class="splash-cube"><span>FFT</span></div></div>
+  <div class="splash-title">FFT <span>SHOP</span></div><div class="splash-sub">PREMIUM MARKETPLACE</div>
+  <div class="loader"><i></i></div><div class="splash-status">Loading your experience...</div>
 </div>
-
-<div id="modal" class="modal hidden"><div class="modal-card"><button class="close" id="closeModal">×</button><div id="modalContent"></div></div></div>
+<div class="fx-bg"><span></span><span></span><span></span><span></span><span></span></div>
+<div class="app-shell">
+<header class="topbar glass"><div><div class="brand">FFT <span>SHOP</span></div><small>Premium marketplace</small></div><div class="top-actions"><a id="adminLink" class="admin-link hidden" href="admin.html">⚡ Admin</a><button id="cartBtn" class="icon-btn">🛒 <b id="cartCount">0</b></button></div></header>
+<main>
+<section id="hero" class="hero-card glass3d"><div><span class="pill">3D PREMIUM SHOP</span><h1 id="heroTitle">Everything you need,<br><span>in one place.</span></h1><p id="heroSubtitle">Clothing, premium products and digital services.</p></div><div class="hero-orb">FFT</div></section>
+<div id="announcement" class="announcement hidden"></div>
+<section class="wallet-card glass"><div><div class="muted">Account Balance</div><strong id="balance">৳0.00</strong></div><button id="depositBtn" class="primary btn3d">+ Add Balance</button></section>
+<nav class="chips" id="categories"><button class="chip active btn3d" data-cat="all">All</button><button class="chip btn3d" data-cat="Clothing">👕 Clothing</button><button class="chip btn3d" data-cat="Premium Apps">💎 Premium</button><button class="chip btn3d" data-cat="Services">🚀 Services</button><button class="chip btn3d" data-cat="Footwear">👟 Footwear</button><button class="chip btn3d" data-cat="Electronics">🎧 Electronics</button></nav>
+<section class="section-head"><h2>Shop</h2><span id="userLabel" class="muted">Not signed in</span></section>
+<div id="products" class="product-grid"></div>
+</main>
+<nav class="bottom-nav glass"><button class="nav active">⌂<span>Home</span></button><button class="nav" id="ordersBtn">▣<span>Orders</span></button><button class="nav" id="premiumBtn">◆<span>Premium</span></button><button class="nav" id="profileBtn">●<span>Account</span></button></nav>
+</div>
+<div id="modal" class="modal hidden"><div class="modal-card glass"><button class="close btn3d" id="closeModal">×</button><div id="modalContent"></div></div></div>
 <script type="module" src="app.js"></script>
 </body></html>
