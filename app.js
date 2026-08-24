@@ -1,6 +1,7 @@
 const supabase = (typeof window.getFFTClient === 'function' ? window.getFFTClient() : null);
 if(!supabase) throw new Error('FFT Supabase client could not be initialized.');
 const $=s=>document.querySelector(s);
+const esc=v=>String(v??'').replace(/[&<>\"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[m]));
 const modal=$('#modal'), modalContent=$('#modalContent');
 let products=[], category='all', cart=JSON.parse(localStorage.getItem('fft_cart')||'[]');
 const money=v=>'৳'+Number(v||0).toLocaleString('en-BD',{minimumFractionDigits:2});
@@ -16,7 +17,7 @@ async function refreshUser(){const {data:{user}}=await supabase.auth.getUser();i
 async function showProduct(id){const p=products.find(x=>x.id===id);if(!p)return;const user=await refreshUser();if(!user){showAuth();return}if(p.category==='Premium Apps'){const {data:plans}=await supabase.from('membership_plans').select('*').eq('is_active',true).order('price');openModal(`<h2>💎 ${p.name}</h2><p>${p.description||'Choose a premium plan.'}</p><div class="form">${(plans||[]).map(x=>`<button class="secondary btn3d plan" data-id="${x.id}">${x.name} · ${money(x.price)} · ${x.duration_days} days</button>`).join('')||'<div class="msg">No active plans yet.</div>'}</div>`);document.querySelectorAll('.plan').forEach(b=>b.onclick=()=>buyPremium(b.dataset.id));return}if(p.category==='Services'){openServiceCheckout(p);return}openModal(`<h2>🛍️ ${p.name}</h2><p>${p.description||''}</p><p><b>${money(p.price)}</b></p><div class="form"><button class="primary btn3d" id="add">Add to Cart</button><button class="secondary btn3d" id="cod">Buy with COD</button><button class="primary btn3d" id="bal">Pay with Balance</button></div>`);$('#add').onclick=()=>{const x=cart.find(x=>x.id===p.id);x?x.qty++:cart.push({id:p.id,name:p.name,price:p.price,qty:1});updateCart();closeModal()};$('#cod').onclick=()=>checkout(p,'cod');$('#bal').onclick=()=>checkout(p,'balance')}
 async function buyPremium(planId){const {data,error}=await supabase.rpc('fft_purchase_premium',{p_plan_id:planId});if(error){openModal(`<h2>Purchase failed</h2><div class="msg">${error.message}</div>`);return}await refreshUser();openModal(`<h2>✅ Premium Activated</h2><div class="msg">Purchase ID: ${data}</div>`)}
 function addressForm(id,submitText){return `<form class="form" id="${id}"><input name="name" required placeholder="Full name"><input name="phone" required placeholder="Phone number"><input name="division" required placeholder="Division"><input name="district" required placeholder="District"><input name="thana" required placeholder="Thana / Upazila"><input name="area" required placeholder="Area"><textarea name="address" required placeholder="Full delivery address"></textarea><button class="primary btn3d">${submitText}</button></form>`}
-async function checkout(p,method){openModal(`<h2>${method==='cod'?'🚚 Cash on Delivery':'💰 Pay with Balance'}</h2>${method==='cod'?'<div class="msg">Delivery fee may apply. Pay when the parcel arrives.</div>':''}${addressForm('orderForm',method==='cod'?'Place COD Order':'Confirm Balance Payment')}`);$('#orderForm').onsubmit=async e=>{e.preventDefault();const f=new FormData(e.target);const address=[f.get('name'),f.get('division'),f.get('district'),f.get('thana'),f.get('area'),f.get('address')].join(', ');const {error}=await supabase.rpc('fft_create_order_with_payment',{p_product_id:p.id,p_payment_method:method,p_quantity:1,p_delivery_address:address,p_delivery_phone:f.get('phone'),p_items:[]});if(error)alert(error.message);else{await refreshUser();openModal(`<h2>✅ Order Placed</h2><div class="msg">Your ${method==='cod'?'COD':'balance'} order has been submitted.</div>`)}}}
+async function checkout(p,method){openModal(`<h2>${method==='cod'?'🚚 Cash on Delivery':'💰 Pay with Balance'}</h2>${method==='cod'?'<div class="msg">Delivery fee may apply. Pay when the parcel arrives.</div>':''}${addressForm('orderForm',method==='cod'?'Place COD Order':'Confirm Balance Payment')}`);$('#orderForm').onsubmit=async e=>{e.preventDefault();const f=new FormData(e.target);const address=[f.get('name'),f.get('division'),f.get('district'),f.get('thana'),f.get('area'),f.get('address')].join(', ');const {data:orderId,error}=await supabase.rpc('fft_create_order_with_payment',{p_customer_name:f.get('name'),p_customer_phone:f.get('phone'),p_customer_address:address,p_payment_method:method,p_items:[{product_id:p.id,quantity:1}],p_shipping_fee:0});if(error)alert(error.message);else{await refreshUser();openModal(`<h2>✅ Order Placed</h2><div class="msg">Your ${method==='cod'?'COD':'balance'} order has been submitted.</div>`)}}}
 async function openServiceCheckout(p){
   const {data:packages,error}=await supabase.from('service_packages').select('*').eq('service_type',p.name).eq('is_active',true).order('sort_order',{ascending:true});
   if(error){openModal(`<h2>Service unavailable</h2><div class="msg">${esc(error.message)}</div>`);return}
@@ -159,12 +160,28 @@ async function loadDynamicButtons(){
     }
   }
 
+  async function checkoutCart(method){
+    const u=await refreshUser(); if(!u)return;
+    if(!cart.length){closeModal();return;}
+    openModal(`<h2>${method==='cod'?'🚚 Cash on Delivery':'💰 Pay with Balance'}</h2>${method==='cod'?'<div class="msg">Pay when the parcel arrives.</div>':''}${addressForm('cartOrderForm',method==='cod'?'Place COD Order':'Confirm Balance Payment')}`);
+    document.getElementById('cartOrderForm').onsubmit=async e=>{
+      e.preventDefault(); const f=new FormData(e.target);
+      const address=[f.get('name'),f.get('division'),f.get('district'),f.get('thana'),f.get('area'),f.get('address')].join(', ');
+      const items=cart.map(x=>({product_id:x.id,quantity:Number(x.qty)||1}));
+      const {data,error}=await supabase.rpc('fft_create_order_with_payment',{p_customer_name:f.get('name'),p_customer_phone:f.get('phone'),p_customer_address:address,p_payment_method:method,p_items:items,p_shipping_fee:0});
+      if(error){openModal(`<h2>Order failed</h2><div class="msg">${esc(error.message)}</div>`);return;}
+      cart=[];updateCart();await refreshUser();openModal(`<h2>✅ Order Placed</h2><div class="msg">Order ID: ${esc(data||'submitted')}<br>Your order has been submitted successfully.</div>`);
+    };
+  }
+
   const cartBtn=document.getElementById('cartBtn');
   if(cartBtn) cartBtn.onclick=()=>{
     if(!cart.length){openModal('<h2>🛒 Your Cart</h2><div class="msg">Your cart is empty.</div>');return}
     const total=cart.reduce((sum,x)=>sum+Number(x.price||0)*Number(x.qty||1),0);
-    openModal(`<h2>🛒 Your Cart</h2><div class="form">${cart.map(x=>`<div class="wallet-card"><span>${esc(x.name)} × ${x.qty}</span><b>${money(Number(x.price)*Number(x.qty))}</b></div>`).join('')}<div class="wallet-card"><span>Total</span><b>${money(total)}</b></div><button class="secondary btn3d" id="clearCart">Clear Cart</button></div>`);
+    openModal(`<h2>🛒 Your Cart</h2><div class="form">${cart.map(x=>`<div class="wallet-card"><span>${esc(x.name)} × ${x.qty}</span><b>${money(Number(x.price)*Number(x.qty))}</b></div>`).join('')}<div class="wallet-card"><span>Total</span><b>${money(total)}</b></div><button class="primary btn3d" id="cartCod">🚚 Checkout COD</button><button class="primary btn3d" id="cartBalance">💰 Pay with Balance</button><button class="secondary btn3d" id="clearCart">Clear Cart</button></div>`);
     document.getElementById('clearCart').onclick=()=>{cart=[];updateCart();closeModal()};
+    document.getElementById('cartCod').onclick=()=>checkoutCart('cod');
+    document.getElementById('cartBalance').onclick=()=>checkoutCart('balance');
   };
   const homeBtn=document.getElementById('homeBtn');
   if(homeBtn)homeBtn.onclick=()=>window.scrollTo({top:0,behavior:'smooth'});
