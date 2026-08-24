@@ -48,16 +48,35 @@ async function buyPremium(planId){
   if(error){openModal(`<h2>Purchase failed</h2><div class="msg">${error.message}</div>`);return}
   await refreshUser(); openModal(`<h2>✅ Premium Activated</h2><div class="msg">Purchase ID: ${data}<br>Your membership has been activated automatically in FFT SHOP.</div>`);
 }
-async function checkout(p,method){
-  if(p.category==='Premium Apps'){return}
-  if(method==='balance'){
-    openModal(`<h2>💰 Pay with Balance</h2><form class="form" id="balForm"><input name="name" required placeholder="Full name"><input name="phone" required placeholder="Phone number"><input name="division" required placeholder="Division"><input name="district" required placeholder="District"><input name="thana" required placeholder="Thana / Upazila"><input name="area" required placeholder="Area"><textarea name="address" required placeholder="Full delivery address"></textarea><button>Confirm Balance Payment</button></form>`);
-    $('#balForm').onsubmit=async e=>{e.preventDefault();const f=new FormData(e.target);const address=[f.get('name'),f.get('division'),f.get('district'),f.get('thana'),f.get('area'),f.get('address')].join(', ');const {error}=await supabase.rpc('fft_create_order_with_payment',{p_product_id:p.id,p_payment_method:'balance',p_quantity:1,p_delivery_address:address,p_delivery_phone:f.get('phone'),p_items:[]});if(error){alert(error.message)}else{await refreshUser();openModal('<h2>✅ Paid & Ordered</h2><div class="msg">Amount deducted from your FFT SHOP balance. Nothing is due on delivery.</div>')}};
-    return;
-  }
-  openModal(`<h2>🚚 Cash on Delivery</h2><form class="form" id="codForm"><input name="name" required placeholder="Full name"><input name="phone" required placeholder="Phone number"><input name="division" required placeholder="Division"><input name="district" required placeholder="District"><input name="thana" required placeholder="Thana / Upazila"><input name="area" required placeholder="Area"><textarea name="address" required placeholder="Full delivery address"></textarea><button>Place COD Order</button></form>`);
-  $('#codForm').onsubmit=async e=>{e.preventDefault();const f=new FormData(e.target);const address=[f.get('name'),f.get('division'),f.get('district'),f.get('thana'),f.get('area'),f.get('address')].join(', ');const {error}=await supabase.rpc('fft_create_order_with_payment',{p_product_id:p.id,p_payment_method:'cod',p_quantity:1,p_delivery_address:address,p_delivery_phone:f.get('phone'),p_items:[]});if(error){alert(error.message)}else{openModal('<h2>✅ COD Order Placed</h2><div class="msg">Delivery details saved. Pay on delivery.</div>')}};
+async function checkout(p,method='cod'){
+  const user=await refreshUser(); if(!user){showAuth();return}
+  const shipping=170, platformFee=5, cashFee=method==='cod'?20:0;
+  const subtotal=Number(p.price||0), total=subtotal+shipping+platformFee+cashFee;
+  openModal(`<div class="checkout-page">
+    <div class="checkout-title"><button class="back-checkout" id="backCheckout">‹</button><div><h2>Checkout</h2><small>FFT SHOP secure order</small></div></div>
+    <section class="checkout-card address-card"><div class="card-title">📍 Delivery address <button id="editAddress" class="link-btn">EDIT</button></div><div id="addressPreview" class="address-preview">Add your delivery information</div>
+      <div id="addressForm" class="address-form hidden"><input name="name" placeholder="Full name" required><input name="phone" placeholder="Phone number" required><input name="division" placeholder="Division" required><input name="district" placeholder="District" required><input name="thana" placeholder="Thana / Upazila" required><textarea name="address" placeholder="Full delivery address" required></textarea><button id="saveAddress" class="primary">Save Address</button></div>
+    </section>
+    <section class="checkout-card product-check"><div class="shop-title">🏪 FFT SHOP <span>Highly rated</span></div><div class="checkout-product"><img src="${p.image_url||'https://placehold.co/160x160/png?text=FFT'}"><div><b>${p.name}</b><small>${p.category||'Shop'}</small><div class="qty-control"><button id="qtyMinus">−</button><b id="qty">1</b><button id="qtyPlus">＋</button></div></div><strong id="itemPrice">${money(subtotal)}</strong></div><div class="delivery-row">Guaranteed delivery <b>৳${shipping}</b> ›</div></section>
+    <section class="checkout-card"><div class="card-title">💳 Select payment method <span class="muted">View all methods ›</span></div>
+      <label class="pay-option"><span>💵</span><div><b>Cash on Delivery</b><small>Cash handling fee applies</small></div><input type="radio" name="pay" value="cod" checked></label>
+      <label class="pay-option"><span>💳</span><div><b>Credit/Debit Card</b><small>Secure online payment</small></div><input type="radio" name="pay" value="card"></label>
+      <label class="pay-option"><span>🔴</span><div><b>Save bKash Account</b><small>Pay with bKash</small></div><input type="radio" name="pay" value="bkash"></label>
+      <label class="pay-option"><span>🟠</span><div><b>Nagad</b><small>Pay with Nagad</small></div><input type="radio" name="pay" value="nagad"></label>
+    </section>
+    <section class="checkout-card summary"><h3>Order Summary</h3><div><span>Merchandise Subtotal</span><b id="sumSubtotal">${money(subtotal)}</b></div><div><span>Discount</span><b class="pink">৳0</b></div><div class="voucher">🎟️ Voucher & Code <span>Enter your voucher code ›</span></div><div><span>Shipping Fee Total</span><b>৳${shipping}</b></div><div><span>Other Fees</span><b id="otherFees">৳${platformFee+cashFee}</b></div><div class="fee-row"><span>Platform Fee</span><b>৳${platformFee}</b></div><div class="fee-row"><span>Cash Payment Fee</span><b id="cashFee">৳${cashFee}</b></div><div class="total"><span>Total <small>VAT included, where applicable</small></span><b id="grandTotal">${money(total)}</b></div></section>
+    <button id="placeOrder" class="place-order">Place Order <b id="placeTotal">${money(total)}</b></button>
+  </div>`);
+  const form=$('#addressForm'), preview=$('#addressPreview'); let qty=1, addr=null;
+  $('#backCheckout').onclick=()=>showProduct(p.id);
+  $('#editAddress').onclick=()=>{form.classList.toggle('hidden'); if(addr) fillAddress(addr)};
+  function fillAddress(a){Object.keys(a).forEach(k=>{const el=form.querySelector(`[name="${k}"]`);if(el)el.value=a[k]})}
+  $('#saveAddress').onclick=()=>{const data=Object.fromEntries(new FormData(form).entries()); if(Object.values(data).some(v=>!String(v).trim())){alert('Please fill all delivery details');return} addr=data; preview.innerHTML=`<b>${data.name}, ${data.phone}</b><br>${data.address}, ${data.thana}, ${data.district}, ${data.division}`; form.classList.add('hidden')};
+  function updateTotal(){const sub=Number(p.price||0)*qty; const pay=document.querySelector('input[name="pay"]:checked')?.value; const cf=pay==='cod'?20:0; const t=sub+shipping+platformFee+cf; $('#qty').textContent=qty; $('#itemPrice').textContent=money(sub);$('#sumSubtotal').textContent=money(sub);$('#otherFees').textContent=money(platformFee+cf);$('#cashFee').textContent=money(cf);$('#grandTotal').textContent=money(t);$('#placeTotal').textContent=money(t)}
+  $('#qtyMinus').onclick=()=>{if(qty>1){qty--;updateTotal()}}; $('#qtyPlus').onclick=()=>{if(qty<(p.stock||99)){qty++;updateTotal()}}; document.querySelectorAll('input[name="pay"]').forEach(x=>x.onchange=updateTotal);
+  $('#placeOrder').onclick=async()=>{if(!addr){form.classList.remove('hidden');alert('Please add your delivery address');return} const pay=document.querySelector('input[name="pay"]:checked').value; if(pay!=='cod'){alert(pay.toUpperCase()+' payment gateway can be connected next. For now select Cash on Delivery.');return} const delivery=[addr.name,addr.division,addr.district,addr.thana,addr.address].join(', '); const {error}=await supabase.rpc('fft_create_order_with_payment',{p_product_id:p.id,p_payment_method:'cod',p_quantity:qty,p_delivery_address:delivery,p_delivery_phone:addr.phone,p_items:[]}); if(error){alert(error.message);return} openModal(`<div class="success-order"><div>✓</div><h2>Order Placed!</h2><p>Your FFT SHOP order has been received successfully.</p><b>Payment: Cash on Delivery</b><button class="primary" id="doneOrder">Continue Shopping</button></div>`); $('#doneOrder').onclick=()=>{closeModal();loadProducts()}};
 }
+
 function showAuth(mode='login'){
   const register = mode==='register';
   openModal(`<h2>${register?'Create FFT SHOP Account':'Welcome to FFT SHOP'}</h2>
