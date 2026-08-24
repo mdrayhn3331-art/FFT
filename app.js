@@ -16,24 +16,22 @@ document.querySelectorAll('.chip').forEach(b=>b.onclick=()=>{document.querySelec
 async function refreshUser(){const {data:{user}}=await supabase.auth.getUser();if(!user){$('#userLabel').textContent='Not signed in';$('#balance').textContent='৳0.00';$('#adminLink').classList.add('hidden');return null}$('#userLabel').textContent=user.email||'Signed in';const {data:w}=await supabase.from('wallets').select('balance').eq('user_id',user.id).maybeSingle();$('#balance').textContent=money(w?.balance||0);const {data:a}=await supabase.from('admins').select('user_id').eq('user_id',user.id).maybeSingle();if(a)$('#adminLink').classList.remove('hidden');else $('#adminLink').classList.add('hidden');return user}
 async function showProduct(id){const p=products.find(x=>x.id===id);if(!p)return;const user=await refreshUser();if(!user){showAuth();return}if(p.category==='Premium Apps'){const {data:plans}=await supabase.from('membership_plans').select('*').eq('is_active',true).order('price');openModal(`<h2>💎 ${p.name}</h2><p>${p.description||'Choose a premium plan.'}</p><div class="form">${(plans||[]).map(x=>`<button class="secondary btn3d plan" data-id="${x.id}">${x.name} · ${money(x.price)} · ${x.duration_days} days</button>`).join('')||'<div class="msg">No active plans yet.</div>'}</div>`);document.querySelectorAll('.plan').forEach(b=>b.onclick=()=>buyPremium(b.dataset.id));return}if(p.category==='Services'){openServiceCheckout(p);return}openModal(`<h2>🛍️ ${p.name}</h2><p>${p.description||''}</p><p><b>${money(p.price)}</b></p><div class="form"><button class="primary btn3d" id="add">Add to Cart</button><button class="secondary btn3d" id="cod">Buy with COD</button><button class="primary btn3d" id="bal">Pay with Balance</button></div>`);$('#add').onclick=()=>{const x=cart.find(x=>x.id===p.id);x?x.qty++:cart.push({id:p.id,name:p.name,price:p.price,qty:1});updateCart();closeModal()};$('#cod').onclick=()=>checkout(p,'cod');$('#bal').onclick=()=>checkout(p,'balance')}
 async function buyPremium(planId){const {data,error}=await supabase.rpc('fft_purchase_premium',{p_plan_id:planId});if(error){openModal(`<h2>Purchase failed</h2><div class="msg">${error.message}</div>`);return}await refreshUser();openModal(`<h2>✅ Premium Activated</h2><div class="msg">Purchase ID: ${data}</div>`)}
-function addressForm(id,submitText){return `<form class="form" id="${id}"><input name="name" required placeholder="Full name"><input name="phone" required placeholder="Phone number"><input name="division" required placeholder="Division"><input name="district" required placeholder="District"><input name="thana" required placeholder="Thana / Upazila"><input name="area" required placeholder="Area"><textarea name="address" required placeholder="Full delivery address"></textarea><button class="primary btn3d">${submitText}</button></form>`}
-async function checkout(p,method){openModal(`<h2>${method==='cod'?'🚚 Cash on Delivery':'💰 Pay with Balance'}</h2>${method==='cod'?'<div class="msg">Delivery fee may apply. Pay when the parcel arrives.</div>':''}${addressForm('orderForm',method==='cod'?'Place COD Order':'Confirm Balance Payment')}`);$('#orderForm').onsubmit=async e=>{e.preventDefault();const f=new FormData(e.target);const address=[f.get('name'),f.get('division'),f.get('district'),f.get('thana'),f.get('area'),f.get('address')].join(', ');const {data:orderId,error}=await supabase.rpc('fft_create_order_with_payment',{p_customer_name:f.get('name'),p_customer_phone:f.get('phone'),p_customer_address:address,p_payment_method:method,p_items:[{product_id:p.id,quantity:1}],p_shipping_fee:0});if(error)alert(error.message);else{await refreshUser();openModal(`<h2>✅ Order Placed</h2><div class="msg">Your ${method==='cod'?'COD':'balance'} order has been submitted.</div>`)}}}
+function addressForm(id,submitText,shippingFee=0){return `<form class="form" id="${id}"><input name="name" required placeholder="Full name"><input name="phone" required placeholder="Phone number"><input name="division" required placeholder="Division"><input name="district" required placeholder="District"><input name="thana" required placeholder="Thana / Upazila"><input name="area" required placeholder="Area / Location"><textarea name="address" required placeholder="Full delivery address"></textarea><div class="wallet-card"><span>Delivery charge</span><b>${money(shippingFee)}</b></div><button class="primary btn3d">${submitText}</button></form>`}
+async function getDeliveryCharge(){const {data}=await supabase.from('site_settings').select('delivery_charge').limit(1).maybeSingle();return Math.max(0,Number(data?.delivery_charge??180))}
+async function checkout(p,method){const isFashion=['clothing','fashion','vip fashion'].includes(String(p.category||'').toLowerCase());const shippingFee=isFashion?await getDeliveryCharge():0;openModal(`<h2>${method==='cod'?'🚚 Cash on Delivery':'💰 Pay with Balance'}</h2>${isFashion?`<div class="msg">📍 Fashion delivery charge: <b>${money(shippingFee)}</b>. Location/address is required.</div>`:method==='cod'?'<div class="msg">Pay when the parcel arrives.</div>':''}${addressForm('orderForm',method==='cod'?'Place COD Order':'Confirm Balance Payment',shippingFee)}`);$('#orderForm').onsubmit=async e=>{e.preventDefault();const f=new FormData(e.target);const address=[f.get('name'),f.get('phone'),f.get('division'),f.get('district'),f.get('thana'),f.get('area'),f.get('address')].join(', ');const {data:orderId,error}=await supabase.rpc('fft_create_order_with_payment',{p_customer_name:f.get('name'),p_customer_phone:f.get('phone'),p_customer_address:address,p_payment_method:method,p_items:[{product_id:p.id,quantity:1}],p_shipping_fee:shippingFee});if(error)openModal(`<h2>Order failed</h2><div class="msg">${esc(error.message)}</div>`);else{await refreshUser();openModal(`<h2>✅ Order Confirmed</h2><div class="msg">Order #${esc(String(orderId).slice(0,8))} created successfully.<br>Payment: ${method==='balance'?'Balance paid':'COD pending'}.</div>`)}}}
 async function openServiceCheckout(p){
   const {data:packages,error}=await supabase.from('service_packages').select('*').eq('service_type',p.name).eq('is_active',true).order('sort_order',{ascending:true});
   if(error){openModal(`<h2>Service unavailable</h2><div class="msg">${esc(error.message)}</div>`);return}
-  const fallbackQty=Number(p.stock||1000);
-  const fallbackPrice=Number(p.price||0);
-  const opts=(packages||[]).map(x=>`<option value="${x.id}" data-qty="${x.quantity}" data-price="${x.price}">${esc(x.label||x.quantity.toLocaleString('en-BD')+' Likes')} — ${money(x.price)}</option>`).join('');
-  openModal(`<h2>🚀 ${esc(p.name)}</h2><p>${esc(p.description||'Promotion service')}</p>
-    <div class="msg">Payment is required before service processing. Send payment to bKash/Nagad <b>01876872469</b>, then submit the transaction ID.</div>
+  const fallbackQty=Math.max(1,Number(p.stock||1000));
+  const fallbackPrice=Math.max(0,Number(p.price||0));
+  const opts=(packages||[]).map(x=>`<option value="${x.id}" data-qty="${x.quantity}" data-price="${x.price}">${esc(x.label||String(x.quantity))} — ${money(x.price)}</option>`).join('');
+  openModal(`<h2>🎬 ${esc(p.name)}</h2><p>${esc(p.description||'Social promotion service')}</p>
+    <div class="notice">🔗 <b>Target Link is required.</b> Payment is taken automatically from your FFT SHOP balance.</div>
     <form class="form" id="serviceForm">
       <input name="link" type="url" required placeholder="Target Facebook / YouTube / TikTok link">
-      ${opts?`<label class="muted">Select Number of Likes</label><select name="package" id="servicePackage" required>${opts}</select>`:`<input name="qty" type="number" min="1" value="${fallbackQty}" required placeholder="Quantity">`}
+      ${opts?`<label class="muted">Select package</label><select name="package" id="servicePackage" required>${opts}</select>`:`<input name="qty" type="number" min="1" value="${fallbackQty}" required placeholder="Quantity">`}
       <div id="servicePrice" class="wallet-card"><span>Total Payable</span><b>${money(opts?packages[0]?.price:fallbackPrice)}</b></div>
-      <select name="method"><option value="bkash">bKash</option><option value="nagad">Nagad</option></select>
-      <input name="sender" required placeholder="Your payment number">
-      <input name="trx" required placeholder="Transaction ID">
-      <button class="primary btn3d" id="submitService">Submit Paid Service Order</button>
+      <button class="primary btn3d" id="submitService">💳 Pay from Balance & Confirm Order</button>
     </form>`);
   const pkg=$('#servicePackage');
   if(pkg) pkg.onchange=()=>{const o=pkg.options[pkg.selectedIndex];$('#servicePrice').innerHTML=`<span>Total Payable</span><b>${money(o.dataset.price)}</b>`};
@@ -42,16 +40,19 @@ async function openServiceCheckout(p){
     const f=new FormData(e.target);
     let qty=f.get('qty')?Number(f.get('qty')):fallbackQty;
     let price=f.get('qty')?fallbackPrice:0;
-    let label='';
-    if(pkg){const o=pkg.options[pkg.selectedIndex];qty=Number(o.dataset.qty);price=Number(o.dataset.price);label=o.textContent}
-    const note=`Payment: ${f.get('method')} | Sender: ${f.get('sender')} | TRX: ${f.get('trx')}${label?` | Package: ${label}`:''}`;
+    if(pkg){const o=pkg.options[pkg.selectedIndex];qty=Number(o.dataset.qty);price=Number(o.dataset.price)}
     const {data:{user:u}}=await supabase.auth.getUser();
     if(!u){showAuth();return}
-    const {error}=await supabase.from('service_orders').insert({user_id:u.id,service_type:p.name,target_link:f.get('link'),quantity:qty,price,notes:note,status:'pending'});
-    if(error) alert(error.message);
-    else openModal('<h2>✅ Payment Submitted</h2><div class="msg">Your service order is waiting for payment verification. Processing starts after confirmation.</div>');
+    const {data:orderId,error}=await supabase.rpc('fft_create_service_order_with_balance',{
+      p_service_type:p.name,p_target_link:String(f.get('link')||'').trim(),p_quantity:qty,p_price:price,
+      p_notes:'Paid automatically from account balance'
+    });
+    if(error){openModal(`<h2>❌ Order failed</h2><div class="msg">${esc(error.message)}</div>`);return}
+    await refreshUser();
+    openModal(`<h2>✅ Service Order Confirmed</h2><div class="msg">Order #${esc(String(orderId).slice(0,8))}<br>${esc(p.name)} has been confirmed and ${money(price)} was deducted from your balance.</div>`);
   };
 }
+
 async function loadDynamicButtons(){
   const wrap=$('#dynamicButtons'); if(!wrap)return;
   const {data,error}=await supabase.from('dynamic_buttons').select('*').eq('is_active',true).order('sort_order',{ascending:true});
@@ -163,14 +164,16 @@ async function loadDynamicButtons(){
   async function checkoutCart(method){
     const u=await refreshUser(); if(!u)return;
     if(!cart.length){closeModal();return;}
-    openModal(`<h2>${method==='cod'?'🚚 Cash on Delivery':'💰 Pay with Balance'}</h2>${method==='cod'?'<div class="msg">Pay when the parcel arrives.</div>':''}${addressForm('cartOrderForm',method==='cod'?'Place COD Order':'Confirm Balance Payment')}`);
+    const fashion=cart.some(x=>{const p=products.find(p=>p.id===x.id);return ['clothing','fashion','vip fashion'].includes(String(p?.category||'').toLowerCase())});
+    const shippingFee=fashion?await getDeliveryCharge():0;
+    openModal(`<h2>${method==='cod'?'🚚 Cash on Delivery':'💰 Pay with Balance'}</h2>${fashion?`<div class="msg">📍 Fashion delivery charge: <b>${money(shippingFee)}</b>.</div>`:method==='cod'?'<div class="msg">Pay when the parcel arrives.</div>':''}${addressForm('cartOrderForm',method==='cod'?'Place COD Order':'Confirm Balance Payment',shippingFee)}`);
     document.getElementById('cartOrderForm').onsubmit=async e=>{
       e.preventDefault(); const f=new FormData(e.target);
-      const address=[f.get('name'),f.get('division'),f.get('district'),f.get('thana'),f.get('area'),f.get('address')].join(', ');
+      const address=[f.get('name'),f.get('phone'),f.get('division'),f.get('district'),f.get('thana'),f.get('area'),f.get('address')].join(', ');
       const items=cart.map(x=>({product_id:x.id,quantity:Number(x.qty)||1}));
-      const {data,error}=await supabase.rpc('fft_create_order_with_payment',{p_customer_name:f.get('name'),p_customer_phone:f.get('phone'),p_customer_address:address,p_payment_method:method,p_items:items,p_shipping_fee:0});
+      const {data,error}=await supabase.rpc('fft_create_order_with_payment',{p_customer_name:f.get('name'),p_customer_phone:f.get('phone'),p_customer_address:address,p_payment_method:method,p_items:items,p_shipping_fee:shippingFee});
       if(error){openModal(`<h2>Order failed</h2><div class="msg">${esc(error.message)}</div>`);return;}
-      cart=[];updateCart();await refreshUser();openModal(`<h2>✅ Order Placed</h2><div class="msg">Order ID: ${esc(data||'submitted')}<br>Your order has been submitted successfully.</div>`);
+      cart=[];updateCart();await refreshUser();openModal(`<h2>✅ Order Confirmed</h2><div class="msg">Order #${esc(String(data||'submitted').slice(0,8))}<br>Your order has been submitted successfully.</div>`);
     };
   }
 
@@ -189,8 +192,20 @@ async function loadDynamicButtons(){
   if(ordersBtn)ordersBtn.onclick=async()=>{
     const u=await refreshUser(); if(!u)return;
     const {data,error}=await client.from('orders').select('*').eq('user_id',u.id).order('created_at',{ascending:false});
-    openModal(`<h2>📦 My Orders</h2>${error?`<div class="msg">${esc(error.message)}</div>`:(data?.length?data.map(o=>`<div class="wallet-card"><span>#${o.id.slice(0,8)}<br>${esc(o.status||'pending')}</span><b>${money(o.checkout_total||o.total_amount)}</b></div>`).join(''):'<div class="msg">No orders yet.</div>')}`);
+    if(error){openModal(`<h2>📦 My Orders</h2><div class="msg">${esc(error.message)}</div>`);return}
+    const cards=await Promise.all((data||[]).map(async o=>{
+      const {data:items}=await client.from('order_items').select('*').eq('order_id',o.id);
+      return `<div class="dynamic-card"><b>#${o.id.slice(0,8)} · ${esc(o.status||'pending')}</b><p class="muted">${new Date(o.created_at).toLocaleString()}</p><div>${(items||[]).map(i=>`${esc(i.product_name)} × ${i.quantity} — ${money(i.unit_price*i.quantity)}`).join('<br>')||'Order details unavailable'}</div><p>Delivery: ${money(o.shipping_fee||0)} · Total: <b>${money(o.checkout_total||o.total_amount)}</b><br>Payment: ${esc(o.payment_method||'')} / ${esc(o.payment_status||'')}</p><small>${esc(o.customer_address||'')}</small></div>`;
+    }));
+    openModal(`<h2>📦 My Orders & Status</h2><div class="dynamic-list">${cards.join('')||'<div class="msg">No orders yet.</div>'}</div>`);
   };
+  function jumpCategory(cat){const b=document.querySelector(`[data-cat="${cat}"]`);if(b){b.click();window.scrollTo({top:document.getElementById('categories').offsetTop-80,behavior:'smooth'});}}
+  const socialIds=['socialShopBtn','socialNavBtn'];
+  socialIds.forEach(id=>document.getElementById(id)?.addEventListener('click',()=>jumpCategory('Services')));
+  const vipIds=['vipViewBtn','vipNavBtn'];
+  vipIds.forEach(id=>document.getElementById(id)?.addEventListener('click',()=>jumpCategory('Services')));
+  const fashionIds=['fashionBtn','fashionNavBtn'];
+  fashionIds.forEach(id=>document.getElementById(id)?.addEventListener('click',()=>jumpCategory('Clothing')));
   const premiumBtn=document.getElementById('premiumBtn');
   if(premiumBtn)premiumBtn.onclick=()=>{category='Premium Apps';document.querySelector('[data-cat="Premium Apps"]')?.click();window.scrollTo({top:0,behavior:'smooth'})};
   const profileBtn=document.getElementById('profileBtn');
@@ -204,15 +219,21 @@ async function loadDynamicButtons(){
     const u=await refreshUser(); if(!u)return;
     const {data:settings}=await client.from('site_settings').select('bkash_number,nagad_number').limit(1).maybeSingle();
     const bk=settings?.bkash_number||'01876872469', ng=settings?.nagad_number||'01876872469';
-    openModal(`<h2>💰 Add Balance</h2><div class="msg">Send money to bKash <b>${esc(bk)}</b> or Nagad <b>${esc(ng)}</b>, then submit the transaction details.</div>
-      <form id="depositForm" class="form"><input name="amount" type="number" min="1" step="0.01" required placeholder="Amount"><select name="payment_method"><option value="bkash">bKash</option><option value="nagad">Nagad</option></select><input name="sender_number" required placeholder="Your payment number"><input name="transaction_id" required placeholder="Transaction ID"><button class="primary btn3d">Submit Deposit</button></form>`);
+    openModal(`<h2>💰 Add Balance</h2><div class="msg">Send money to bKash <b>${esc(bk)}</b> or Nagad <b>${esc(ng)}</b>. Transaction ID and payment screenshot are required.</div>
+      <form id="depositForm" class="form"><input name="amount" type="number" min="1" step="0.01" required placeholder="Amount"><select name="payment_method"><option value="bkash">bKash</option><option value="nagad">Nagad</option></select><input name="sender_number" required placeholder="Your payment number"><input name="transaction_id" required placeholder="Transaction ID"><input name="screenshot" type="file" accept="image/*" required><button class="primary btn3d">Submit Deposit</button></form>`);
     document.getElementById('depositForm').onsubmit=async e=>{
-      e.preventDefault();const f=new FormData(e.target);
-      const {error}=await client.from('deposit_requests').insert({user_id:u.id,amount:Number(f.get('amount')),payment_method:f.get('payment_method'),sender_number:f.get('sender_number'),transaction_id:f.get('transaction_id'),status:'pending',merchant_number:f.get('payment_method')==='bkash'?bk:ng});
+      e.preventDefault();const f=new FormData(e.target);const file=f.get('screenshot');
+      if(!(file instanceof File)||!file.size){alert('Payment screenshot is required.');return}
+      const safeName=(file.name||'proof.jpg').replace(/[^a-zA-Z0-9._-]/g,'_');
+      const path=`${u.id}/${Date.now()}-${safeName}`;
+      const upload=await client.storage.upload('fft-payment-screenshots',path,file,{upsert:false});
+      if(upload.error){openModal(`<h2>Screenshot upload failed</h2><div class="msg">${esc(upload.error.message)}</div>`);return}
+      const {error}=await client.from('deposit_requests').insert({user_id:u.id,amount:Number(f.get('amount')),payment_method:f.get('payment_method'),sender_number:f.get('sender_number'),transaction_id:f.get('transaction_id'),screenshot_url:path,status:'pending',merchant_number:f.get('payment_method')==='bkash'?bk:ng});
       if(error)openModal(`<h2>Deposit failed</h2><div class="msg">${esc(error.message)}</div>`);
-      else openModal('<h2>✅ Deposit Submitted</h2><div class="msg">Your deposit request is pending admin verification.</div>');
+      else openModal('<h2>✅ Deposit Submitted</h2><div class="msg">Transaction ID and screenshot received. Your balance will update after admin verification.</div>');
     };
   };
+
   client.auth.onAuthStateChange(()=>{});
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 })();

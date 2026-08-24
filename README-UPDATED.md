@@ -22,3 +22,16 @@ Connected project: `ihxwkebgjvtndynhosbk`
 - Custom admin buttons are loaded dynamically from Supabase
 
 The database migration has already been applied to the connected Supabase project. `supabase-migration.sql` is included as a reference for the new tables and seed packages.
+
+
+## Social Shop + VIP Fashion functionality
+- Social services: Likes, Comments, Follow, Subscribe.
+- Target link is required.
+- Service package price is loaded automatically from Supabase.
+- Service payment is deducted atomically from the user's wallet and the order is confirmed.
+- Add Balance requires bKash/Nagad, sender number, Transaction ID, and payment screenshot.
+- Payment screenshots use the private `fft-payment-screenshots` Storage bucket.
+- VIP Fashion checkout collects delivery location/address.
+- Default fashion delivery charge is ৳180 and is editable from Admin → Site Settings.
+- Fashion balance/COD orders use the configurable delivery charge.
+- My Orders shows order details, payment state, delivery charge, and status.
