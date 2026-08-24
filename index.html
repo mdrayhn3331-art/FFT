@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="theme-color" content="#070b1a"><title>FFT SHOP</title>
+<meta name="theme-color" content="#070b1a"><meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"><title>FFT SHOP</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
@@ -27,5 +27,14 @@
 <nav class="bottom-nav glass"><button class="nav active">⌂<span>Home</span></button><button class="nav" id="ordersBtn">▣<span>Orders</span></button><button class="nav" id="premiumBtn">◆<span>Premium</span></button><button class="nav" id="profileBtn">●<span>Account</span></button></nav>
 </div>
 <div id="modal" class="modal hidden"><div class="modal-card glass"><button class="close btn3d" id="closeModal">×</button><div id="modalContent"></div></div></div>
-<script type="module" src="app.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="supabase.js"></script>
+<script>
+/* Hard safety fallback: network/API errors must never leave the splash stuck forever. */
+setTimeout(function () {
+  var s = document.getElementById('splash');
+  if (s) s.classList.add('hide');
+}, 5200);
+</script>
+<script src="app.js"></script>
 </body></html>

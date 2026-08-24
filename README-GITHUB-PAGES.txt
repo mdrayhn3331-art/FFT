@@ -1,13 +1,10 @@
-FFT SHOP - GitHub Pages
+FFT SHOP — GITHUB PAGES FINAL FIX
 
-DEPLOY:
 1. Extract this ZIP.
-2. Upload ALL files inside this folder directly to the ROOT of your GitHub repository.
-3. Make sure index.html is in the repository ROOT (not inside another folder).
-4. GitHub -> Settings -> Pages -> Deploy from branch -> main -> /(root).
-5. Open the GitHub Pages URL.
+2. Upload every file INSIDE this ZIP directly to the ROOT of your GitHub repository.
+3. index.html must be directly visible in the repository root.
+4. GitHub Settings -> Pages -> Deploy from branch -> main -> /(root) -> Save.
+5. Wait for deployment, then hard refresh the site.
 
-IMPORTANT:
-- Do NOT upload the outer folder itself as a nested folder.
-- index.html, app.js, styles.css and supabase.js must be in the same root level.
-- Admin panel: admin.html
+This version uses the browser UMD build of Supabase instead of an ES module import,
+and includes a hard splash timeout so the site cannot remain stuck on Loading.
