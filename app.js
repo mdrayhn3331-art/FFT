@@ -1,4 +1,5 @@
-const supabase = window.getFFTClient();
+let supabase = null;
+const supabaseReady = window.fftSupabaseReady || Promise.resolve().then(() => window.getFFTClient());
 const $=s=>document.querySelector(s);
 const modal=$('#modal'), modalContent=$('#modalContent');
 let products=[], category='all', cart=JSON.parse(localStorage.getItem('fft_cart')||'[]');
@@ -46,8 +47,8 @@ function showAuthGate(mode='login', message=''){
   $('#gateRegisterTab').onclick=()=>showAuthGate('register');
   const regLink=$('#gateRegLink'); if(regLink) regLink.onclick=()=>showAuthGate('register');
   const loginLink=$('#gateLoginLink'); if(loginLink) loginLink.onclick=()=>showAuthGate('login');
-  $('#gateGoogle').onclick=()=>supabase.auth.signInWithOAuth({provider:'google',options:{redirectTo:location.href.split('#')[0]}});
-  $('#gateFacebook').onclick=()=>supabase.auth.signInWithOAuth({provider:'facebook',options:{redirectTo:location.href.split('#')[0]}});
+  $('#gateGoogle').onclick=()=>{if(!supabase){alert('Server is still connecting. Please try again.');return;} supabase.auth.signInWithOAuth({provider:'google',options:{redirectTo:location.href.split('#')[0]}});};
+  $('#gateFacebook').onclick=()=>{if(!supabase){alert('Server is still connecting. Please try again.');return;} supabase.auth.signInWithOAuth({provider:'facebook',options:{redirectTo:location.href.split('#')[0]}});};
   $('#forgotBtn')?.addEventListener('click',()=>showForgotGate());
   $('#gateSubmit').onclick=async()=>{
     const email=$('#gEmail').value.trim(), password=$('#gPass').value;
@@ -76,7 +77,7 @@ function showForgotGate(){
   const gate=$('#authGate'), box=$('#authGateContent'); gate.classList.remove('hidden');
   box.innerHTML=`<h2>Reset Password</h2><p class="muted">Enter your email and we will send a password reset link.</p><div id="gateError"></div><div class="form"><input id="resetEmail" type="email" placeholder="Email Address" required><button id="resetBtn" class="primary btn3d">Send Reset Link</button></div><div class="auth-links"><button id="backLogin" class="auth-link">← Back to Login</button></div>`;
   $('#backLogin').onclick=()=>showAuthGate('login');
-  $('#resetBtn').onclick=async()=>{const email=$('#resetEmail').value.trim();if(!email){$('#gateError').innerHTML='<div class="auth-error">Enter your email address.</div>';return}const {error}=await supabase.auth.resetPasswordForEmail(email,{redirectTo:location.href.split('#')[0]});if(error)$('#gateError').innerHTML=`<div class="auth-error">${String(error.message).replace(/[<>]/g,'')}</div>`;else $('#gateError').innerHTML='<div class="auth-success">Password reset link sent. Check your email.</div>'};
+  $('#resetBtn').onclick=async()=>{if(!supabase){$('#gateError').innerHTML='<div class="auth-error">Server connection is unavailable. Please try again.</div>';return}const email=$('#resetEmail').value.trim();if(!email){$('#gateError').innerHTML='<div class="auth-error">Enter your email address.</div>';return}const {error}=await supabase.auth.resetPasswordForEmail(email,{redirectTo:location.href.split('#')[0]});if(error)$('#gateError').innerHTML=`<div class="auth-error">${String(error.message).replace(/[<>]/g,'')}</div>`;else $('#gateError').innerHTML='<div class="auth-success">Password reset link sent. Check your email.</div>'};
 }
 
 function showAuth(mode='login'){
@@ -98,6 +99,7 @@ function showAuth(mode='login'){
   if(register) $('#eye2').onclick=()=>$('#confirmPass').type=$('#confirmPass').type==='password'?'text':'password';
   $('#switchAuth').onclick=()=>showAuth(register?'login':'register');
   $('#authSubmit').onclick=async()=>{
+    if(!supabase){alert('Server connection is unavailable. Please check your internet and try again.');return}
     const email=$('#email').value.trim(), password=$('#pass').value;
     if(register){
       if(password!==$('#confirmPass').value) return alert('Password and Confirm Password do not match.');
@@ -111,8 +113,8 @@ function showAuth(mode='login'){
       closeModal(); refreshUser();
     }
   };
-  $('#google').onclick=()=>supabase.auth.signInWithOAuth({provider:'google',options:{redirectTo:location.origin}});
-  $('#facebook').onclick=()=>supabase.auth.signInWithOAuth({provider:'facebook',options:{redirectTo:location.origin}});
+  $('#google').onclick=()=>{if(!supabase){alert('Server is still connecting. Please try again.');return;} supabase.auth.signInWithOAuth({provider:'google',options:{redirectTo:location.origin}});};
+  $('#facebook').onclick=()=>{if(!supabase){alert('Server is still connecting. Please try again.');return;} supabase.auth.signInWithOAuth({provider:'facebook',options:{redirectTo:location.origin}});};
 }
 $('#cartBtn').onclick=()=>{openModal(`<h2>🛒 Cart</h2>${cart.length?cart.map(x=>`<div class="wallet-card"><div>${x.name}<br><small>${x.qty} × ${money(x.price)}</small></div><b>${money(x.qty*x.price)}</b></div>`).join(''):'<div class="msg">Your cart is empty.</div>'}`)};
 $('#profileBtn').onclick=async()=>{const u=await refreshUser();if(!u){showAuth();return}openModal(`<h2>👤 Account</h2><div class="msg">${u.email}<br>Balance: ${$('#balance').textContent}</div><br><button id="logout" class="primary btn3d" style="width:100%">Logout</button>`);$('#logout').onclick=async()=>{await supabase.auth.signOut();closeModal();refreshUser()}};
@@ -121,17 +123,15 @@ $('#ordersBtn').onclick=async()=>{const u=await refreshUser();if(!u){showAuth();
 $('#depositBtn').onclick=async()=>{const u=await refreshUser();if(!u){showAuth();return}openModal(`<h2>💰 Add Balance</h2><div class="msg">Send money to <b>01876872469</b> via bKash/Nagad, then submit the request.</div><form id="dep" class="form"><input name="amount" type="number" min="1" required placeholder="Amount (BDT)"><select name="method"><option value="bkash">bKash</option><option value="nagad">Nagad</option></select><input name="sender" required placeholder="Sender number"><input name="trx" required placeholder="Transaction ID"><button class="primary btn3d">Submit Deposit Request</button></form>`);$('#dep').onsubmit=async e=>{e.preventDefault();const f=new FormData(e.target);const {error}=await supabase.from('deposit_requests').insert({user_id:u.id,amount:Number(f.get('amount')),payment_method:f.get('method'),sender_number:f.get('sender'),transaction_id:f.get('trx'),status:'pending',merchant_number:'01876872469'});if(error)alert(error.message);else openModal('<h2>✅ Submitted</h2><div class="msg">Deposit is pending admin verification.</div>')}};
 async function boot(){
   const splash = document.getElementById('splash');
-  // The splash has a fixed duration. Never wait for Supabase/network before showing auth.
-  await new Promise(resolve => setTimeout(resolve, 4200));
-  splash?.classList.add('hide');
-
   const gate = document.getElementById('authGate');
   const shell = document.querySelector('.app-shell');
+
   const showLoggedOut = () => {
     shell?.classList.add('hidden');
     gate?.classList.remove('hidden');
     showAuthGate('login');
   };
+
   const showLoggedIn = () => {
     gate?.classList.add('hidden');
     shell?.classList.remove('hidden');
@@ -141,29 +141,50 @@ async function boot(){
     updateCart();
   };
 
+  // Always leave splash after 4.2s; do not block the UI on Supabase.
+  await new Promise(resolve => setTimeout(resolve, 4200));
+  splash?.classList.add('hide');
+
   try {
-    // getSession reads the local auth session and does not depend on product queries.
-    const { data, error } = await Promise.race([
-      supabase.auth.getSession(),
-      new Promise(resolve => setTimeout(() => resolve({data:{session:null}, error:new Error('session timeout')}), 2500))
+    supabase = await Promise.race([
+      supabaseReady,
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Supabase SDK timeout')), 7000))
     ]);
+
+    const { data } = await Promise.race([
+      supabase.auth.getSession(),
+      new Promise(resolve => setTimeout(() => resolve({data:{session:null}}), 2500))
+    ]);
+
     if (data?.session?.user) showLoggedIn();
     else showLoggedOut();
   } catch (err) {
-    console.error('Auth boot error:', err);
+    console.error('FFT startup error:', err);
+    // If Supabase is temporarily unavailable, still show the real login UI.
     showLoggedOut();
+    const e = document.getElementById('gateError');
+    if (e) e.innerHTML = '<div class="auth-error">Server connection is unavailable right now. Please check your internet and try again.</div>';
   }
 }
-supabase.auth.onAuthStateChange((event, session)=>{
-  if(event === 'SIGNED_IN' && session?.user){
-    document.getElementById('authGate')?.classList.add('hidden');
-    document.querySelector('.app-shell')?.classList.remove('hidden');
-    refreshUser(); loadSettings(); loadProducts();
-  }
-  if(event === 'SIGNED_OUT'){
-    document.querySelector('.app-shell')?.classList.add('hidden');
-    document.getElementById('authGate')?.classList.remove('hidden');
-    showAuthGate('login');
-  }
-})(()=>refreshUser());
-boot().catch(err=>{console.error('FFT boot error:',err);$('#splash')?.classList.add('hide');setTimeout(()=>showAuthGate('login'),120)});
+
+supabaseReady.then(client=>{
+  supabase = client;
+  supabase.auth.onAuthStateChange((event, session)=>{
+    if(event === 'SIGNED_IN' && session?.user){
+      document.getElementById('authGate')?.classList.add('hidden');
+      document.querySelector('.app-shell')?.classList.remove('hidden');
+      refreshUser(); loadSettings(); loadProducts();
+    }
+    if(event === 'SIGNED_OUT'){
+      document.querySelector('.app-shell')?.classList.add('hidden');
+      document.getElementById('authGate')?.classList.remove('hidden');
+      showAuthGate('login');
+    }
+  });
+}).catch(err=>console.error('Supabase listener setup:', err));
+
+boot().catch(err=>{
+  console.error('FFT boot error:',err);
+  $('#splash')?.classList.add('hide');
+  setTimeout(()=>showAuthGate('login'),120);
+});

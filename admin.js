@@ -1,4 +1,4 @@
-import {supabase} from './supabase.js';
+const supabase = await window.fftSupabaseReady;
 const $=s=>document.querySelector(s),panel=$('#panel');let current='dashboard';let user=null;
 const money=v=>'৳'+Number(v||0).toLocaleString('en-BD',{minimumFractionDigits:2});
 async function isAdmin(){const {data:{user:u}}=await supabase.auth.getUser();user=u;if(!u)return false;const {data}=await supabase.from('admins').select('user_id,email').eq('user_id',u.id).maybeSingle();return !!data}
