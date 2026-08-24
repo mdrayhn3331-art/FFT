@@ -30,3 +30,7 @@ URL: `https://ihxwkebgjvtndynhosbk.supabase.co`
 ## Important
 Do not put a service-role key in frontend files.
 Premium app credentials/passwords should not be stored as plaintext. The current premium system activates the FFT SHOP membership record; external provider activation requires an authorized provider/API.
+
+
+## Connected project
+The browser client is configured for Supabase project `ihxwkebgjvtndynhosbk` using its publishable key. Do not replace it with a service-role key.

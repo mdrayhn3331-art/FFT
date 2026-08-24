@@ -51,19 +51,56 @@ async function buyPremium(planId){
 async function checkout(p,method){
   if(p.category==='Premium Apps'){return}
   if(method==='balance'){
-    const {data,error}=await supabase.rpc('fft_create_order_with_payment',{p_product_id:p.id,p_payment_method:'balance',p_quantity:1,p_delivery_address:'',p_delivery_phone:'',p_items:[]});
-    if(error){openModal(`<h2>Checkout failed</h2><div class="msg">${error.message}</div>`);return}
-    await refreshUser();openModal('<h2>✅ Order placed</h2><div class="msg>Your balance payment order was created.</div>');return;
+    openModal(`<h2>💰 Pay with Balance</h2><form class="form" id="balForm"><input name="name" required placeholder="Full name"><input name="phone" required placeholder="Phone number"><input name="division" required placeholder="Division"><input name="district" required placeholder="District"><input name="thana" required placeholder="Thana / Upazila"><input name="area" required placeholder="Area"><textarea name="address" required placeholder="Full delivery address"></textarea><button>Confirm Balance Payment</button></form>`);
+    $('#balForm').onsubmit=async e=>{e.preventDefault();const f=new FormData(e.target);const address=[f.get('name'),f.get('division'),f.get('district'),f.get('thana'),f.get('area'),f.get('address')].join(', ');const {error}=await supabase.rpc('fft_create_order_with_payment',{p_product_id:p.id,p_payment_method:'balance',p_quantity:1,p_delivery_address:address,p_delivery_phone:f.get('phone'),p_items:[]});if(error){alert(error.message)}else{await refreshUser();openModal('<h2>✅ Paid & Ordered</h2><div class="msg">Amount deducted from your FFT SHOP balance. Nothing is due on delivery.</div>')}};
+    return;
   }
   openModal(`<h2>🚚 Cash on Delivery</h2><form class="form" id="codForm"><input name="name" required placeholder="Full name"><input name="phone" required placeholder="Phone number"><input name="division" required placeholder="Division"><input name="district" required placeholder="District"><input name="thana" required placeholder="Thana / Upazila"><input name="area" required placeholder="Area"><textarea name="address" required placeholder="Full delivery address"></textarea><button>Place COD Order</button></form>`);
   $('#codForm').onsubmit=async e=>{e.preventDefault();const f=new FormData(e.target);const address=[f.get('name'),f.get('division'),f.get('district'),f.get('thana'),f.get('area'),f.get('address')].join(', ');const {error}=await supabase.rpc('fft_create_order_with_payment',{p_product_id:p.id,p_payment_method:'cod',p_quantity:1,p_delivery_address:address,p_delivery_phone:f.get('phone'),p_items:[]});if(error){alert(error.message)}else{openModal('<h2>✅ COD Order Placed</h2><div class="msg">Delivery details saved. Pay on delivery.</div>')}};
 }
-function showAuth(){openModal(`<h2>Welcome to FFT SHOP</h2><form id="loginForm" class="form"><input id="email" type="email" required placeholder="Email"><input id="pass" type="password" required placeholder="Password"><button>Login</button></form><div style="height:8px"></div><button id="google" class="secondary" style="width:100%">Continue with Google</button><div style="height:8px"></div><button id="facebook" class="secondary" style="width:100%">Continue with Facebook</button><p class="muted">New user? Register from Supabase Auth or connect your register screen.</p>`);
-$('#loginForm').onsubmit=async e=>{e.preventDefault();const {error}=await supabase.auth.signInWithPassword({email:$('#email').value,password:$('#pass').value});if(error)alert(error.message);else{closeModal();refreshUser()}};
-$('#google').onclick=()=>supabase.auth.signInWithOAuth({provider:'google',options:{redirectTo:location.origin}});
-$('#facebook').onclick=()=>supabase.auth.signInWithOAuth({provider:'facebook',options:{redirectTo:location.origin}});
+function showAuth(mode='login'){
+  const register = mode==='register';
+  openModal(`<h2>${register?'Create FFT SHOP Account':'Welcome to FFT SHOP'}</h2>
+  <div class="form">
+    ${register?`<input id="firstName" required placeholder="First Name"><input id="lastName" required placeholder="Last Name"><input id="phone" required placeholder="Phone Number">`:''}
+    <input id="email" type="email" required placeholder="Email">
+    <div style="position:relative"><input id="pass" type="password" required placeholder="Password" style="padding-right:48px"><button type="button" id="eye1" class="secondary" style="position:absolute;right:4px;top:4px;padding:8px 10px">👁️</button></div>
+    ${register?`<div style="position:relative"><input id="confirmPass" type="password" required placeholder="Confirm Password" style="padding-right:48px"><button type="button" id="eye2" class="secondary" style="position:absolute;right:4px;top:4px;padding:8px 10px">👁️</button></div>`:''}
+    <button id="authSubmit" class="primary">${register?'Register':'Login'}</button>
+  </div>
+  <div style="height:10px"></div>
+  <button id="google" class="secondary" style="width:100%">🔵 Continue with Google</button>
+  <div style="height:8px"></div>
+  <button id="facebook" class="secondary" style="width:100%">🔷 Continue with Facebook</button>
+  <p class="muted" id="switchAuth" style="text-align:center">${register?'Already have an account? Login':'New user? Create an account'}</p>`);
+
+  $('#eye1').onclick=()=>$('#pass').type=$('#pass').type==='password'?'text':'password';
+  if(register) $('#eye2').onclick=()=>$('#confirmPass').type=$('#confirmPass').type==='password'?'text':'password';
+  $('#switchAuth').onclick=()=>showAuth(register?'login':'register');
+
+  $('#authSubmit').onclick=async()=>{
+    const email=$('#email').value.trim(), password=$('#pass').value;
+    if(register){
+      if(password!==$('#confirmPass').value) return alert('Password and Confirm Password do not match.');
+      const {data,error}=await supabase.auth.signUp({email,password,options:{data:{
+        first_name:$('#firstName').value.trim(), last_name:$('#lastName').value.trim(), phone:$('#phone').value.trim()
+      }}});
+      if(error) return alert(error.message);
+      if(data.user){
+        await supabase.from('profiles').upsert({user_id:data.user.id,first_name:$('#firstName').value.trim(),last_name:$('#lastName').value.trim(),phone:$('#phone').value.trim()});
+        await supabase.rpc('ensure_fft_wallet');
+      }
+      openModal('<h2>✅ Registration submitted</h2><div class="msg">Check your email if email confirmation is enabled, then login.</div>');
+    }else{
+      const {error}=await supabase.auth.signInWithPassword({email,password});
+      if(error) return alert(error.message);
+      closeModal(); refreshUser();
+    }
+  };
+  $('#google').onclick=()=>supabase.auth.signInWithOAuth({provider:'google',options:{redirectTo:location.origin}});
+  $('#facebook').onclick=()=>supabase.auth.signInWithOAuth({provider:'facebook',options:{redirectTo:location.origin}});
 }
-$('#depositBtn').onclick=async()=>{const u=await refreshUser();if(!u){showAuth();return}openModal(`<h2>💰 Add Balance</h2><p>Send money to <b>01876872469</b> via bKash/Nagad, then submit the request.</p><form id="dep" class="form"><input name="amount" type="number" min="1" required placeholder="Amount (BDT)"><input name="method" required placeholder="bKash or Nagad"><input name="sender" required placeholder="Sender number"><input name="trx" required placeholder="Transaction ID"><button>Submit Deposit Request</button></form>`);$('#dep').onsubmit=async e=>{e.preventDefault();const f=new FormData(e.target);const {error}=await supabase.from('deposit_requests').insert({user_id:u.id,amount:Number(f.get('amount')),payment_method:f.get('method'),sender_number:f.get('sender'),transaction_id:f.get('trx'),status:'pending'});if(error)alert(error.message);else openModal('<h2>✅ Submitted</h2><div class="msg">Deposit request is pending admin verification.</div>')}};
+$('#depositBtn').onclick=async()=>{const u=await refreshUser();if(!u){showAuth();return}openModal(`<h2>💰 Add Balance</h2><p>Send money to <b>01876872469</b> via bKash/Nagad, then submit the request.</p><form id="dep" class="form"><input name="amount" type="number" min="1" required placeholder="Amount (BDT)"><select name="method" required><option value="bkash">bKash</option><option value="nagad">Nagad</option></select><input name="sender" required placeholder="Sender number"><input name="trx" required placeholder="Transaction ID"><button>Submit Deposit Request</button></form>`);$('#dep').onsubmit=async e=>{e.preventDefault();const f=new FormData(e.target);const {error}=await supabase.from('deposit_requests').insert({user_id:u.id,amount:Number(f.get('amount')),payment_method:f.get('method'),sender_number:f.get('sender'),transaction_id:f.get('trx'),status:'pending'});if(error)alert(error.message);else openModal('<h2>✅ Submitted</h2><div class="msg">Deposit request is pending admin verification.</div>')}};
 $('#cartBtn').onclick=()=>openModal(`<h2>🛒 Cart</h2>${cart.length?cart.map(x=>`<div class="wallet-card"><div>${x.name}<br><small>${x.qty} × ${money(x.price)}</small></div><b>${money(x.qty*x.price)}</b></div>`).join(''):'<div class="msg">Your cart is empty.</div>'}`);
 $('#profileBtn').onclick=async()=>{const u=await refreshUser();if(!u){showAuth();return}openModal(`<h2>👤 Account</h2><div class="msg">${u.email}<br>Balance: ${$('#balance').textContent}</div><br><button id="logout" class="primary" style="width:100%">Logout</button>`);$('#logout').onclick=async()=>{await supabase.auth.signOut();closeModal();refreshUser()}};
 $('#premiumBtn').onclick=()=>{category='Premium Apps';document.querySelector('[data-cat="Premium Apps"]').click()};
