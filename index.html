@@ -34,14 +34,32 @@
 <nav class="bottom-nav glass"><button class="nav active">⌂<span>Home</span></button><button class="nav" id="ordersBtn">▣<span>Orders</span></button><button class="nav" id="premiumBtn">◆<span>Premium</span></button><button class="nav" id="profileBtn">●<span>Account</span></button></nav>
 </div>
 <div id="modal" class="modal hidden"><div class="modal-card glass"><button class="close btn3d" id="closeModal">×</button><div id="modalContent"></div></div></div>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script src="supabase.js"></script>
 <script>
-/* Hard safety fallback: network/API errors must never leave the splash stuck forever. */
-setTimeout(function () {
-  var s = document.getElementById('splash');
-  if (s) s.classList.add('hide');
-}, 5200);
+/* NON-BLOCKING splash failsafe: registered before any external/local app code. */
+(function(){
+  var done=false;
+  window.FFT_HIDE_SPLASH=function(){
+    if(done)return; done=true;
+    var s=document.getElementById('splash');
+    if(s)s.classList.add('hide');
+  };
+  setTimeout(window.FFT_HIDE_SPLASH, 4600);
+})();
 </script>
-<script src="app.js?v=20260824-auth-rest-fixed-2"></script>
+<script src="supabase.js"></script>
+<script src="app.js?v=20260824-rest-only-final"></script>
+<script>
+/* Last-resort UI recovery if app.js crashes. */
+setTimeout(function(){
+  window.FFT_HIDE_SPLASH&&window.FFT_HIDE_SPLASH();
+  var gate=document.getElementById('authGate');
+  var box=document.getElementById('authGateContent');
+  if(gate && box && !document.querySelector('.app-shell:not(.hidden)')){
+    gate.classList.remove('hidden');
+    if(!box.children.length){
+      box.innerHTML='<div class="auth-error">App startup failed. Please reload this page.</div><button class="primary btn3d" style="width:100%" onclick="location.reload()">Reload FFT SHOP</button>';
+    }
+  }
+},5200);
+</script>
 </body></html>
