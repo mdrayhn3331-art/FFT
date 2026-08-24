@@ -91,36 +91,9 @@
       },
       onAuthStateChange(cb) { listeners.push(cb); return {data:{subscription:{unsubscribe(){ const i=listeners.indexOf(cb); if(i>=0)listeners.splice(i,1); }}}}; }
     };
-    const storage = {
-      async upload(bucket, path, file, options={}) {
-        const s = getStored();
-        if (!s?.access_token) return { data:null, error:{message:'Login required'} };
-        const res = await fetch(URL + '/storage/v1/object/' + encodeURIComponent(bucket) + '/' + path.split('/').map(encodeURIComponent).join('/'), {
-          method:'POST',
-          headers:{ apikey:KEY, Authorization:'Bearer '+s.access_token, 'Content-Type':file.type || 'application/octet-stream', 'x-upsert':options.upsert?'true':'false' },
-          body:file
-        });
-        const text=await res.text(); let data=null; try{data=text?JSON.parse(text):null}catch{data=text}
-        if(!res.ok) return {data:null,error:{message:data?.message||data?.error||text||('HTTP '+res.status),status:res.status}};
-        return {data:{path},error:null};
-      },
-      async createSignedUrl(bucket,path,expiresIn=3600) {
-        const s=getStored();
-        if(!s?.access_token) return {data:null,error:{message:'Login required'}};
-        const res=await fetch(URL + '/storage/v1/object/sign/' + encodeURIComponent(bucket) + '/' + path.split('/').map(encodeURIComponent).join('/'), {
-          method:'POST',
-          headers:{apikey:KEY,Authorization:'Bearer '+s.access_token,'Content-Type':'application/json'},
-          body:JSON.stringify({expiresIn})
-        });
-        const text=await res.text(); let data=null; try{data=text?JSON.parse(text):null}catch{data=text}
-        if(!res.ok) return {data:null,error:{message:data?.message||data?.error||text||('HTTP '+res.status),status:res.status}};
-        const signed=data?.signedURL ? (data.signedURL.startsWith('http')?data.signedURL:URL+'/storage/v1'+data.signedURL) : null;
-        return {data:{signedUrl:signed},error:null};
-      }
-    };
     return { auth, from: table => new Query(table), rpc: async(name,args={}) => {
       return request('/rest/v1/rpc/'+encodeURIComponent(name),{method:'POST',body:JSON.stringify(args)});
-    }, storage };
+    }};
   }
 
   const listeners=[];

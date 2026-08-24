@@ -34,3 +34,10 @@ create policy "admins manage dynamic buttons" on public.dynamic_buttons for all 
 insert into public.service_packages (service_type,label,quantity,price,sort_order,is_active) values
 ('TikTok Likes','100 Likes',100,20,10,true),('TikTok Likes','200 Likes',200,40,20,true),('TikTok Likes','500 Likes',500,90,30,true),('TikTok Likes','1,000 Likes',1000,160,40,true),('TikTok Likes','2,000 Likes',2000,300,50,true),('TikTok Likes','5,000 Likes',5000,750,60,true),('TikTok Likes','10,000 Likes',10000,1400,70,true),('TikTok Likes','20,000 Likes',20000,2800,80,true),('TikTok Likes','50,000 Likes',50000,7000,90,true),('TikTok Likes','100,000 Likes',100000,14000,100,true),('TikTok Likes','200,000 Likes',200000,28000,110,true),('TikTok Likes','500,000 Likes',500000,70000,120,true),('TikTok Likes','1,000,000 Likes',1000000,140000,130,true),('TikTok Likes','2,000,000 Likes',2000000,280000,140,true),('TikTok Likes','5,000,000 Likes',5000000,700000,150,true),('TikTok Likes','10,000,000 Likes',10000000,1400000,160,true)
 on conflict do nothing;
+
+
+-- Product variants: sizes/colors and order selections
+alter table public.products add column if not exists available_sizes text[] not null default '{}';
+alter table public.products add column if not exists available_colors text[] not null default '{}';
+alter table public.order_items add column if not exists selected_size text;
+alter table public.order_items add column if not exists selected_color text;
